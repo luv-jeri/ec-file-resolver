@@ -1,0 +1,30 @@
+appId: com.evolphin.ec-file-resolver
+productName: EC File Resolver
+directories:
+  output: release
+
+mac:
+  category: public.app-category.utilities
+  target:
+    - dmg
+    - zip
+  icon: assets/icon.icns
+
+win:
+  target:
+    - nsis
+  icon: assets/icon.ico
+
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+
+dmg:
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
