@@ -55,6 +55,41 @@ describe('HTTP Server', () => {
     expect(body.error).toContain('1000');
   });
 
+  it('POST /get-file-paths rejects files with invalid field types', async () => {
+    const res = await fetch(`${baseUrl}/get-file-paths`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: [{ name: 123, webkitRelativePath: null, size: 'abc', lastModified: 'xyz' }],
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('name');
+  });
+
+  it('POST /get-file-paths rejects files with empty name', async () => {
+    const res = await fetch(`${baseUrl}/get-file-paths`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: [{ name: '', webkitRelativePath: 'a/b.txt', size: 100, lastModified: 0 }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /get-file-paths rejects files with negative size', async () => {
+    const res = await fetch(`${baseUrl}/get-file-paths`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: [{ name: 'a.txt', webkitRelativePath: 'a/a.txt', size: -1, lastModified: 0 }],
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('POST /get-file-paths rejects path traversal', async () => {
     const res = await fetch(`${baseUrl}/get-file-paths`, {
       method: 'POST',

@@ -5,6 +5,16 @@ import type { BrowserFileInfo } from './services/file-resolver';
 
 const fileResolver = new FileResolverService();
 
+function isValidBrowserFileInfo(f: unknown): f is BrowserFileInfo {
+  return (
+    typeof f === 'object' && f !== null &&
+    typeof (f as any).name === 'string' && (f as any).name.length > 0 &&
+    typeof (f as any).webkitRelativePath === 'string' &&
+    typeof (f as any).size === 'number' && (f as any).size >= 0 &&
+    typeof (f as any).lastModified === 'number'
+  );
+}
+
 export function createServer(port: number = 7771) {
   const app = express();
 
@@ -31,6 +41,14 @@ export function createServer(port: number = 7771) {
 
       if (files.length > 1000) {
         res.status(400).json({ error: 'Maximum 1000 files per request' });
+        return;
+      }
+
+      const invalidFile = files.find((f) => !isValidBrowserFileInfo(f));
+      if (invalidFile) {
+        res.status(400).json({
+          error: 'Each file must have: string name (non-empty), string webkitRelativePath, number size (>= 0), number lastModified',
+        });
         return;
       }
 
