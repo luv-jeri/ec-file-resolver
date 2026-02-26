@@ -12,7 +12,7 @@ export function createServer(port: number = 7771) {
     origin: true,
     credentials: true,
   }));
-  app.use(express.json());
+  app.use(express.json({ limit: '1mb' }));
 
   app.get('/health', (_req, res) => {
     const osInfo = fileResolver.detectOsInfo();
@@ -26,6 +26,11 @@ export function createServer(port: number = 7771) {
 
       if (!files || !Array.isArray(files) || files.length === 0) {
         res.status(400).json({ error: 'Request must include a non-empty "files" array' });
+        return;
+      }
+
+      if (files.length > 1000) {
+        res.status(400).json({ error: 'Maximum 1000 files per request' });
         return;
       }
 

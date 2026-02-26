@@ -38,6 +38,23 @@ describe('HTTP Server', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /get-file-paths rejects when files array exceeds 1000 items', async () => {
+    const files = Array.from({ length: 1001 }, (_, i) => ({
+      name: `file${i}.txt`,
+      webkitRelativePath: `folder/file${i}.txt`,
+      size: 100,
+      lastModified: Date.now(),
+    }));
+    const res = await fetch(`${baseUrl}/get-file-paths`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('1000');
+  });
+
   it('POST /get-file-paths rejects path traversal', async () => {
     const res = await fetch(`${baseUrl}/get-file-paths`, {
       method: 'POST',
