@@ -82,15 +82,30 @@ export class FileResolverService {
     const resolvedMapping: Record<string, string> = {};
     const triedPaths: Record<string, string[]> = {};
 
-    for (const browserFile of browserFiles) {
-      const tried: string[] = [];
-      const resolved = await this.resolveFile(browserFile, tried);
-      if (resolved) {
-        resolvedPaths.push(resolved);
-        resolvedMapping[browserFile.webkitRelativePath] = resolved;
-      } else {
-        unresolvedFiles.push(browserFile);
-        triedPaths[browserFile.webkitRelativePath] = tried;
+    const CONCURRENCY = 10;
+    for (let i = 0; i < browserFiles.length; i += CONCURRENCY) {
+      const batch = browserFiles.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async (browserFile) => {
+          const tried: string[] = [];
+          const resolved = await this.resolveFile(browserFile, tried);
+          return { browserFile, tried, resolved };
+        })
+      );
+
+      for (const result of results) {
+        if (result.status === 'fulfilled') {
+          const { browserFile, tried, resolved } = result.value;
+          if (resolved) {
+            resolvedPaths.push(resolved);
+            resolvedMapping[browserFile.webkitRelativePath] = resolved;
+          } else {
+            unresolvedFiles.push(browserFile);
+            triedPaths[browserFile.webkitRelativePath] = tried;
+          }
+        } else {
+          console.error('Unexpected rejection in file resolution:', result.reason);
+        }
       }
     }
 
