@@ -90,6 +90,22 @@ describe('HTTP Server', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects CORS requests from unauthorized origins', async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { 'Origin': 'https://evil.com' },
+    });
+    const allowOrigin = res.headers.get('access-control-allow-origin');
+    expect(allowOrigin).not.toBe('https://evil.com');
+  });
+
+  it('allows CORS requests from approved origins', async () => {
+    const res = await fetch(`${baseUrl}/health`, {
+      headers: { 'Origin': 'https://app.evolphin.com' },
+    });
+    const allowOrigin = res.headers.get('access-control-allow-origin');
+    expect(allowOrigin).toBe('https://app.evolphin.com');
+  });
+
   it('POST /get-file-paths rejects path traversal', async () => {
     const res = await fetch(`${baseUrl}/get-file-paths`, {
       method: 'POST',

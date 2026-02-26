@@ -19,7 +19,7 @@ export function createServer(port: number = 7771) {
   const app = express();
 
   app.use(cors({
-    origin: true,
+    origin: ['https://app.evolphin.com', 'http://localhost:3000'],
     credentials: true,
   }));
   app.use(express.json({ limit: '1mb' }));
