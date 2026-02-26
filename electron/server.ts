@@ -96,7 +96,7 @@ export function createServer(port: number = 7771) {
     }
   });
 
-  const server = app.listen(port, () => {
+  const server = app.listen(port, '127.0.0.1', () => {
     const addr = server.address();
     const actualPort = typeof addr === 'object' && addr ? addr.port : port;
     console.log(`File resolver server running on port ${actualPort}`);

@@ -9,9 +9,13 @@ describe('HTTP Server', () => {
     const mod = await import('./server');
     const result = mod.createServer(0);
     server = result.server;
+    await new Promise<void>((resolve) => {
+      if (server.listening) return resolve();
+      server.on('listening', () => resolve());
+    });
     const addr = server.address();
     const port = typeof addr === 'object' && addr ? addr.port : 0;
-    baseUrl = `http://localhost:${port}`;
+    baseUrl = `http://127.0.0.1:${port}`;
   });
 
   afterAll(() => {
