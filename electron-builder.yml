@@ -2,6 +2,7 @@ appId: com.evolphin.ec-file-resolver
 productName: EC File Resolver
 directories:
   output: release
+afterPack: ./scripts/afterPack.js
 
 mac:
   category: public.app-category.utilities
@@ -9,10 +10,13 @@ mac:
     - dmg
     - zip
   icon: assets/icon.icns
+  identity: null
 
 win:
   target:
-    - nsis
+    - target: nsis
+      arch:
+        - x64
   icon: assets/icon.ico
 
 nsis:
