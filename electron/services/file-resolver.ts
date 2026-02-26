@@ -189,17 +189,25 @@ export class FileResolverService {
   }
 
   private async searchWindowsIndex(fileName: string): Promise<string[]> {
-    const escapedName = fileName.replace(/'/g, "''");
-    const psScript =
-      `$conn = New-Object System.Data.OleDb.OleDbConnection('Provider=Search.CollatorDSO;Extended Properties="Application=Windows";');` +
-      `$conn.Open();` +
-      `$cmd = $conn.CreateCommand();` +
-      `$cmd.CommandText = "SELECT System.ItemPathDisplay FROM SystemIndex WHERE System.FileName = '${escapedName}'";` +
-      `$reader = $cmd.ExecuteReader();` +
-      `while($reader.Read()){$reader.GetString(0)};` +
-      `$conn.Close()`;
+    const psScript = [
+      '$conn = New-Object System.Data.OleDb.OleDbConnection(\'Provider=Search.CollatorDSO;Extended Properties="Application=Windows";\');',
+      '$conn.Open();',
+      '$cmd = $conn.CreateCommand();',
+      '$cmd.CommandText = "SELECT System.ItemPathDisplay FROM SystemIndex WHERE System.FileName = @name";',
+      '$param = $cmd.CreateParameter();',
+      '$param.ParameterName = "@name";',
+      '$param.Value = $args[0];',
+      '$cmd.Parameters.Add($param) | Out-Null;',
+      '$reader = $cmd.ExecuteReader();',
+      'while($reader.Read()){$reader.GetString(0)};',
+      '$conn.Close()',
+    ].join(' ');
 
-    const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', psScript], { timeout: PROCESS_TIMEOUT_MS });
+    const { stdout } = await execFileAsync(
+      'powershell',
+      ['-NoProfile', '-Command', psScript, fileName],
+      { timeout: PROCESS_TIMEOUT_MS }
+    );
     return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   }
 
