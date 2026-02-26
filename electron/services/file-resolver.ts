@@ -132,7 +132,7 @@ export class FileResolverService {
     const sizeMatched: string[] = [];
     for (const candidatePath of candidates) {
       tried.push(candidatePath);
-      if (this.isValidMatch(candidatePath, browserFile.size)) {
+      if (await this.isValidMatch(candidatePath, browserFile.size)) {
         sizeMatched.push(candidatePath);
       }
     }
@@ -150,7 +150,7 @@ export class FileResolverService {
       const timeMatched: string[] = [];
       for (const candidatePath of narrowed) {
         try {
-          const stat = fs.statSync(candidatePath);
+          const stat = await fs.promises.stat(candidatePath);
           const fileModified = stat.mtimeMs;
           if (Math.abs(fileModified - browserFile.lastModified) <= LAST_MODIFIED_TOLERANCE_MS) {
             timeMatched.push(candidatePath);
@@ -195,9 +195,9 @@ export class FileResolverService {
     return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
   }
 
-  private isValidMatch(filePath: string, expectedSize: number): boolean {
+  private async isValidMatch(filePath: string, expectedSize: number): Promise<boolean> {
     try {
-      const stat = fs.statSync(filePath);
+      const stat = await fs.promises.stat(filePath);
       if (!stat.isFile()) return false;
       if (stat.size !== expectedSize) {
         console.warn(`Size mismatch for ${filePath}: expected ${expectedSize}, actual ${stat.size}`);
