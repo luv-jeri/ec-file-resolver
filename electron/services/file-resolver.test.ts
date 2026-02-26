@@ -15,6 +15,15 @@ describe('FileResolverService', () => {
     });
   });
 
+  describe('detectOsInfo caching', () => {
+    it('should return consistent results on repeated calls', () => {
+      const service = new FileResolverService();
+      const info1 = service.detectOsInfo();
+      const info2 = service.detectOsInfo();
+      expect(info1).toEqual(info2);
+    });
+  });
+
   describe('resolveFiles', () => {
     it('should return empty results for empty input', async () => {
       const service = new FileResolverService();

@@ -32,6 +32,7 @@ const PROCESS_TIMEOUT_MS = 30000;
 export class FileResolverService {
   private homeDirectory: string;
   private platform: string;
+  private commandCache = new Map<string, boolean>();
 
   constructor(homeDirectory?: string, platform?: string) {
     this.homeDirectory = homeDirectory ?? os.homedir();
@@ -217,24 +218,35 @@ export class FileResolverService {
   }
 
   private isCommandAvailable(command: string): boolean {
+    if (this.commandCache.has(command)) {
+      return this.commandCache.get(command)!;
+    }
     try {
       const which = this.isWindows() ? 'where' : 'which';
       require('child_process').execFileSync(which, [command], { timeout: 5000 });
+      this.commandCache.set(command, true);
       return true;
     } catch {
+      this.commandCache.set(command, false);
       return false;
     }
   }
 
   private isWindowsSearchAvailable(): boolean {
+    if (this.commandCache.has('__windowsSearch')) {
+      return this.commandCache.get('__windowsSearch')!;
+    }
     try {
       const result = require('child_process').execFileSync(
         'powershell',
         ['-NoProfile', '-Command', 'Get-Service WSearch | Select-Object -ExpandProperty Status'],
         { timeout: 5000 }
       );
-      return result.toString().trim().toLowerCase() === 'running';
+      const available = result.toString().trim().toLowerCase() === 'running';
+      this.commandCache.set('__windowsSearch', available);
+      return available;
     } catch {
+      this.commandCache.set('__windowsSearch', false);
       return false;
     }
   }
