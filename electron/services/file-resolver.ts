@@ -206,8 +206,16 @@ export class FileResolverService {
   private async searchLocate(fileName: string): Promise<string[]> {
     const cmd = this.isCommandAvailable('plocate') ? 'plocate' : 'locate';
     const args = cmd === 'plocate' ? ['-b', fileName] : ['-b', '-i', fileName];
-    const { stdout } = await execFileAsync(cmd, args, { timeout: PROCESS_TIMEOUT_MS });
-    return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    try {
+      const { stdout } = await execFileAsync(cmd, args, { timeout: PROCESS_TIMEOUT_MS });
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    } catch (e: any) {
+      // locate/plocate exit with code 1 when no results are found — not an error
+      if (e.code === 1 || e.status === 1) {
+        return [];
+      }
+      throw e;
+    }
   }
 
   private async isValidMatch(filePath: string, expectedSize: number): Promise<boolean> {
