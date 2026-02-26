@@ -1,8 +1,9 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  plugins: [],
   test: {
-    include: ['electron/**/*.test.ts', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['electron/**/*.test.ts'],
     environment: 'node',
   },
 });

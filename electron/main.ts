@@ -1,94 +1,68 @@
-import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron';
+import { app, Tray, Menu, nativeImage, NativeImage } from 'electron';
 import path from 'path';
 import AutoLaunch from 'auto-launch';
 import { createServer } from './server';
 
-let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let httpServer: ReturnType<typeof createServer> | null = null;
+let isOnline = false;
 
-const resolutionHistory: Array<{
-  timestamp: number;
-  filesRequested: number;
-  filesResolved: number;
-  status: string;
-}> = [];
-
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-    },
-  });
-
-  if (process.env.VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
-  }
-
-  mainWindow.on('close', (e) => {
-    if (!(app as any).isQuitting) {
-      e.preventDefault();
-      mainWindow?.hide();
-    }
-  });
-}
-
-function createTray() {
-  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
-  let icon: nativeImage;
-  try {
-    icon = nativeImage.createFromPath(iconPath);
-    if (icon.isEmpty()) {
-      icon = nativeImage.createEmpty();
-    }
-  } catch {
-    icon = nativeImage.createEmpty();
-  }
-
-  tray = new Tray(icon);
-  tray.setToolTip('EC File Resolver');
+function updateTrayMenu() {
+  if (!tray) return;
 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Open Dashboard', click: () => mainWindow?.show() },
+    {
+      label: 'EC File Resolver',
+      enabled: false,
+    },
     { type: 'separator' },
+    {
+      label: `Status: ${isOnline ? 'Online' : 'Offline'}`,
+      enabled: false,
+    },
     {
       label: 'Server: port 7771',
       enabled: false,
     },
     { type: 'separator' },
     {
+      label: 'Restart',
+      click: () => {
+        app.relaunch();
+        app.exit();
+      },
+    },
+    {
       label: 'Quit',
       click: () => {
-        (app as any).isQuitting = true;
         app.quit();
       },
     },
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.on('click', () => mainWindow?.show());
 }
 
-function setupIpc() {
-  ipcMain.handle('get-server-status', () => {
-    return {
-      running: httpServer !== null,
-      port: 7771,
-    };
-  });
+function createTray() {
+  const iconPath = path.join(__dirname, '../assets/tray-icon.png');
+  let icon: NativeImage;
+  try {
+    icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+      console.error('Tray icon is empty, path:', iconPath);
+      icon = nativeImage.createEmpty();
+    } else {
+      icon = icon.resize({ width: 22, height: 22 });
+    }
+  } catch (err) {
+    console.error('Failed to load tray icon:', err);
+    icon = nativeImage.createEmpty();
+  }
 
-  ipcMain.handle('get-logs', () => {
-    return [];
-  });
+  tray = new Tray(icon);
+  tray.setToolTip('EC File Resolver');
 
-  ipcMain.handle('get-resolution-history', () => {
-    return resolutionHistory;
-  });
+  updateTrayMenu();
 }
 
 async function setupAutoLaunch() {
@@ -112,17 +86,29 @@ app.whenReady().then(() => {
   httpServer = createServer(7771);
   console.log('HTTP server started on port 7771');
 
-  createWindow();
+  httpServer.server.on('error', (err: any) => {
+    console.error('Server error:', err);
+    isOnline = false;
+    updateTrayMenu();
+  });
+
+  httpServer.server.on('listening', () => {
+    isOnline = true;
+    updateTrayMenu();
+  });
+
+  if (httpServer.server.listening) {
+    isOnline = true;
+  }
+
   createTray();
-  setupIpc();
   setupAutoLaunch();
 });
 
 app.on('window-all-closed', () => {
-  // Keep running in tray
+  // Keep running in tray — no windows to manage
 });
 
 app.on('before-quit', () => {
-  (app as any).isQuitting = true;
   httpServer?.server.close();
 });
