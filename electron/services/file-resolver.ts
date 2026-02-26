@@ -93,7 +93,8 @@ export class FileResolverService {
         })
       );
 
-      for (const result of results) {
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j];
         if (result.status === 'fulfilled') {
           const { browserFile, tried, resolved } = result.value;
           if (resolved) {
@@ -104,7 +105,9 @@ export class FileResolverService {
             triedPaths[browserFile.webkitRelativePath] = tried;
           }
         } else {
+          const browserFile = batch[j];
           console.error('Unexpected rejection in file resolution:', result.reason);
+          unresolvedFiles.push(browserFile);
         }
       }
     }

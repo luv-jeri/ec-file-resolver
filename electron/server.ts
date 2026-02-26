@@ -11,7 +11,7 @@ function isValidBrowserFileInfo(f: unknown): f is BrowserFileInfo {
     typeof (f as any).name === 'string' && (f as any).name.length > 0 &&
     typeof (f as any).webkitRelativePath === 'string' &&
     typeof (f as any).size === 'number' && (f as any).size >= 0 &&
-    typeof (f as any).lastModified === 'number'
+    typeof (f as any).lastModified === 'number' && (f as any).lastModified >= 0
   );
 }
 
