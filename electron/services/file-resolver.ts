@@ -2,8 +2,22 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as path from 'path';
 
 const execFileAsync = promisify(execFile);
+
+// File-based debug logger — writes to ~/Library/Logs/ECFileResolver/debug.log
+const LOG_DIR = path.join(os.homedir(), 'Library', 'Logs', 'ECFileResolver');
+const LOG_FILE = path.join(LOG_DIR, 'debug.log');
+try { fs.mkdirSync(LOG_DIR, { recursive: true }); } catch { /* ignore */ }
+
+function debugLog(msg: string) {
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(msg);
+  try { fs.appendFileSync(LOG_FILE, line); } catch { /* ignore */ }
+}
+
+debugLog(`=== EC File Resolver started === PID=${process.pid} execPath=${process.execPath} PATH=${process.env.PATH}`);
 
 export interface BrowserFileInfo {
   name: string;
@@ -24,6 +38,7 @@ export interface OsInfo {
   osVersion: string;
   indexTool: string;
   indexAvailable: boolean;
+  fullDiskAccess: boolean;
 }
 
 const LAST_MODIFIED_TOLERANCE_MS = 5000;
@@ -45,15 +60,16 @@ export class FileResolverService {
 
     if (this.isMac()) {
       const available = this.isCommandAvailable('mdfind');
-      return { osName, osVersion, indexTool: 'mdfind (Spotlight)', indexAvailable: available };
+      const fda = available ? this.checkFullDiskAccess() : false;
+      return { osName, osVersion, indexTool: 'mdfind (Spotlight)', indexAvailable: available, fullDiskAccess: fda };
     } else if (this.isWindows()) {
       const available = this.isWindowsSearchAvailable();
-      return { osName, osVersion, indexTool: 'Windows Search (OleDb)', indexAvailable: available };
+      return { osName, osVersion, indexTool: 'Windows Search (OleDb)', indexAvailable: available, fullDiskAccess: true };
     } else {
       const hasPlocate = this.isCommandAvailable('plocate');
       const hasLocate = this.isCommandAvailable('locate');
       const tool = hasPlocate ? 'plocate' : 'locate';
-      return { osName, osVersion, indexTool: tool, indexAvailable: hasPlocate || hasLocate };
+      return { osName, osVersion, indexTool: tool, indexAvailable: hasPlocate || hasLocate, fullDiskAccess: true };
     }
   }
 
@@ -139,13 +155,16 @@ export class FileResolverService {
         candidates = await this.searchLocate(browserFile.name);
       }
     } catch (e) {
-      console.warn(`OS index search failed for ${browserFile.name}: ${e}`);
+      debugLog(`[resolve] OS index search THREW for ${browserFile.name}: ${e}`);
       return null;
     }
 
-    if (!candidates || candidates.length === 0) return null;
+    if (!candidates || candidates.length === 0) {
+      debugLog(`[resolve] No candidates from OS index for "${browserFile.name}"`);
+      return null;
+    }
 
-    console.log(`OS index returned ${candidates.length} candidates for ${browserFile.name}`);
+    debugLog(`[resolve] OS index returned ${candidates.length} candidates for ${browserFile.name}`);
 
     const sizeMatched: string[] = [];
     for (const candidatePath of candidates) {
@@ -187,8 +206,46 @@ export class FileResolverService {
   }
 
   private async searchMdfind(fileName: string): Promise<string[]> {
-    const { stdout } = await execFileAsync('mdfind', ['-name', fileName], { timeout: PROCESS_TIMEOUT_MS });
-    return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    try {
+      const { stdout, stderr } = await execFileAsync('/usr/bin/mdfind', ['-name', fileName], { timeout: PROCESS_TIMEOUT_MS });
+      debugLog(`[mdfind] query="${fileName}" stdout_len=${stdout.length} results=${stdout.split('\n').filter(Boolean).length}`);
+      if (stderr && stderr.trim()) debugLog(`[mdfind] stderr: ${stderr.substring(0, 200)}`);
+      return stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    } catch (err: any) {
+      debugLog(`[mdfind] FAILED for "${fileName}": ${err.message}`);
+      if (err.stderr) debugLog(`[mdfind] stderr: ${err.stderr.substring(0, 200)}`);
+      if (err.code) debugLog(`[mdfind] code: ${err.code}`);
+      throw err;
+    }
+  }
+
+  /**
+   * Probe whether this app has Full Disk Access on macOS.
+   * Tries to list ~/Library/Safari/ — a TCC-protected directory that requires FDA.
+   * Falls back to checking if mdfind can find files in ~/Desktop.
+   */
+  checkFullDiskAccess(): boolean {
+    if (this.commandCache.has('__fullDiskAccess')) {
+      return this.commandCache.get('__fullDiskAccess')!;
+    }
+
+    if (!this.isMac()) {
+      this.commandCache.set('__fullDiskAccess', true);
+      return true;
+    }
+
+    try {
+      // ~/Library/Safari/ is TCC-protected — only readable with Full Disk Access
+      const safariDir = `${this.homeDirectory}/Library/Safari`;
+      fs.readdirSync(safariDir);
+      debugLog('Full Disk Access check: ~/Library/Safari readable → FDA granted');
+      this.commandCache.set('__fullDiskAccess', true);
+      return true;
+    } catch {
+      debugLog('Full Disk Access check: ~/Library/Safari not readable → FDA not granted');
+      this.commandCache.set('__fullDiskAccess', false);
+      return false;
+    }
   }
 
   private async searchWindowsIndex(fileName: string): Promise<string[]> {

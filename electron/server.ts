@@ -79,16 +79,22 @@ export function createServer(port: number = 7771) {
         status = 'PARTIAL';
       }
 
+      // When nothing resolved and FDA is missing, return a specific status so frontend can prompt user
+      const needsFda = !osInfo.fullDiskAccess && (status === 'NONE_RESOLVED' || status === 'PARTIAL');
+      const fdaError = needsFda
+        ? 'EC File Resolver needs Full Disk Access to search files. Go to System Settings > Privacy & Security > Full Disk Access, and enable EC File Resolver.'
+        : null;
+
       const statusCode = status === 'NONE_RESOLVED' ? 400 : 200;
 
       res.status(statusCode).json({
-        status,
+        status: needsFda ? 'FULL_DISK_ACCESS_REQUIRED' : status,
         osInfo,
         resolvedPaths: result.resolvedPaths,
         resolvedMapping: result.resolvedMapping,
         unresolvedFiles: result.unresolvedFiles,
         triedPaths: result.triedPaths,
-        error: null,
+        error: fdaError,
       });
     } catch (e) {
       console.error('Unexpected error in /get-file-paths:', e);

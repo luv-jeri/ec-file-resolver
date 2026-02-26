@@ -1,7 +1,8 @@
-import { app, Tray, Menu, nativeImage, NativeImage } from 'electron';
+import { app, Tray, Menu, nativeImage, NativeImage, shell } from 'electron';
 import path from 'path';
 import AutoLaunch from 'auto-launch';
 import { createServer } from './server';
+import { FileResolverService } from './services/file-resolver';
 
 let tray: Tray | null = null;
 let httpServer: ReturnType<typeof createServer> | null = null;
@@ -10,7 +11,11 @@ let isOnline = false;
 function updateTrayMenu() {
   if (!tray) return;
 
-  const contextMenu = Menu.buildFromTemplate([
+  const fileResolver = new FileResolverService();
+  const hasFda = fileResolver.checkFullDiskAccess();
+  const isMac = process.platform === 'darwin';
+
+  const menuItems: Electron.MenuItemConstructorOptions[] = [
     {
       label: 'EC File Resolver',
       enabled: false,
@@ -24,22 +29,39 @@ function updateTrayMenu() {
       label: 'Server: port 7771',
       enabled: false,
     },
-    { type: 'separator' },
-    {
-      label: 'Restart',
-      click: () => {
-        app.relaunch();
-        app.exit();
-      },
-    },
-    {
-      label: 'Quit',
-      click: () => {
-        app.quit();
-      },
-    },
-  ]);
+  ];
 
+  // Show FDA warning on macOS when not granted
+  if (isMac && !hasFda) {
+    menuItems.push({ type: 'separator' });
+    menuItems.push({
+      label: '⚠ Full Disk Access Required',
+      enabled: false,
+    });
+    menuItems.push({
+      label: 'Grant Full Disk Access...',
+      click: () => {
+        shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles');
+      },
+    });
+  }
+
+  menuItems.push({ type: 'separator' });
+  menuItems.push({
+    label: 'Restart',
+    click: () => {
+      app.relaunch();
+      app.exit();
+    },
+  });
+  menuItems.push({
+    label: 'Quit',
+    click: () => {
+      app.quit();
+    },
+  });
+
+  const contextMenu = Menu.buildFromTemplate(menuItems);
   tray.setContextMenu(contextMenu);
 }
 
